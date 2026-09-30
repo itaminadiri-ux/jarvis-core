@@ -50,11 +50,11 @@ PERFIL DEL USUARIO Y CONTEXTO DEL SISTEMA:
 {json.dumps(perfil_usuario, ensure_ascii=False, indent=2)}
 
 Tienes acceso a herramientas del sistema para consultar datos en tiempo real.
-Tus respuestas van a ser escuchadas por voz, por lo que deben ser directas, naturales, conversacionales y concisas (evita tablas o formateo markdown complejo).
+Tus respuestas deben ser claras, directas, objetivas y bien estructuradas.
 """
 
 # ==========================================
-# INTERFAZ WEB DE VOZ NATIVA (MEDIA RECORDER)
+# INTERFAZ WEB MULTIMODAL (TEXTO Y VOZ)
 # ==========================================
 HTML_INTERFACE = """
 <!DOCTYPE html>
@@ -62,8 +62,9 @@ HTML_INTERFACE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>J.A.R.V.I.S. Voice System</title>
+    <title>J.A.R.V.I.S. Control System</title>
     <style>
+        * { box-sizing: border-box; }
         body {
             background-color: #0b0f19;
             color: #00f0ff;
@@ -74,36 +75,38 @@ HTML_INTERFACE = """
             justify-content: center;
             min-height: 100vh;
             margin: 0;
-            padding: 20px;
-            box-sizing: border-box;
+            padding: 15px;
         }
         .jarvis-container {
             text-align: center;
             background: rgba(16, 24, 48, 0.85);
             border: 1px solid #00f0ff;
-            padding: 40px;
+            padding: 30px 20px;
             border-radius: 20px;
             box-shadow: 0 0 30px rgba(0, 240, 255, 0.25);
-            max-width: 500px;
+            max-width: 600px;
             width: 100%;
         }
         h1 {
             letter-spacing: 5px;
-            margin-bottom: 30px;
+            margin-top: 0;
+            margin-bottom: 20px;
             text-shadow: 0 0 12px #00f0ff;
+            font-size: 1.8em;
         }
         .mic-btn {
             background: transparent;
             border: 2px solid #00f0ff;
             border-radius: 50%;
-            width: 120px;
-            height: 120px;
-            font-size: 50px;
+            width: 90px;
+            height: 90px;
+            font-size: 38px;
             color: #00f0ff;
             cursor: pointer;
             transition: all 0.3s ease;
             box-shadow: 0 0 15px rgba(0, 240, 255, 0.3);
             outline: none;
+            margin-bottom: 15px;
         }
         .mic-btn:hover {
             transform: scale(1.05);
@@ -120,41 +123,115 @@ HTML_INTERFACE = """
             50% { transform: scale(1.08); }
             100% { transform: scale(1); }
         }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 12px 15px;
+            border-radius: 10px;
+            border: 1px solid #00f0ff;
+            background: rgba(0, 240, 255, 0.05);
+            color: #ffffff;
+            font-size: 1em;
+            outline: none;
+        }
+        input[type="text"]:focus {
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+        }
+        .send-btn {
+            padding: 12px 20px;
+            border-radius: 10px;
+            border: 1px solid #00f0ff;
+            background: rgba(0, 240, 255, 0.15);
+            color: #00f0ff;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .send-btn:hover {
+            background: #00f0ff;
+            color: #0b0f19;
+        }
         #status {
-            margin-top: 25px;
-            font-size: 1.1em;
+            margin-top: 15px;
+            font-size: 0.95em;
             color: #88a0c0;
         }
         #response-box {
-            margin-top: 25px;
+            margin-top: 20px;
             padding: 15px;
             border-radius: 10px;
             background: rgba(0, 240, 255, 0.05);
             border: 1px solid rgba(0, 240, 255, 0.2);
-            min-height: 80px;
+            min-height: 100px;
             color: #ffffff;
-            font-size: 1em;
+            font-size: 0.98em;
             line-height: 1.5;
             text-align: left;
+            white-space: pre-wrap;
+            max-height: 350px;
+            overflow-y: auto;
         }
     </style>
 </head>
 <body>
     <div class="jarvis-container">
         <h1>J.A.R.V.I.S.</h1>
+        
         <button id="micBtn" class="mic-btn" onclick="toggleRecording()">🎙️</button>
-        <div id="status">Haz clic para hablarle a Jarvis</div>
-        <div id="response-box">Sistemas listos y en espera, señor.</div>
+        
+        <div class="input-group">
+            <input type="text" id="textInput" placeholder="Escriba su mensaje para Jarvis..." onkeypress="handleKeyPress(event)">
+            <button class="send-btn" onclick="sendTextMessage()">Enviar</button>
+        </div>
+
+        <div id="status">Sistemas en espera, señor.</div>
+        <div id="response-box">A la espera de sus órdenes, Ilyas.</div>
     </div>
 
     <script>
         const micBtn = document.getElementById('micBtn');
         const statusDiv = document.getElementById('status');
         const responseBox = document.getElementById('response-box');
+        const textInput = document.getElementById('textInput');
 
         let mediaRecorder;
         let audioChunks = [];
         let isRecording = false;
+
+        async function sendTextMessage() {
+            const text = textInput.value.trim();
+            if (!text) return;
+
+            textInput.value = '';
+            statusDiv.innerText = "Procesando mensaje...";
+            responseBox.innerText = "Jarvis está procesando la solicitud...";
+
+            try {
+                const res = await fetch('/ask', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text })
+                });
+                const data = await res.json();
+                const reply = data.jarvis_response || "No pude procesar la solicitud, señor.";
+                
+                responseBox.innerText = reply;
+                statusDiv.innerText = "Sistemas en espera, señor.";
+            } catch (err) {
+                responseBox.innerText = "Error de conexión con el servidor de Jarvis.";
+                statusDiv.innerText = "Error al enviar";
+            }
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendTextMessage();
+            }
+        }
 
         async function toggleRecording() {
             if (!isRecording) {
@@ -164,9 +241,7 @@ HTML_INTERFACE = """
                     audioChunks = [];
 
                     mediaRecorder.ondataavailable = event => {
-                        if (event.data.size > 0) {
-                            audioChunks.push(event.data);
-                        }
+                        if (event.data.size > 0) audioChunks.push(event.data);
                     };
 
                     mediaRecorder.onstop = async () => {
@@ -177,7 +252,7 @@ HTML_INTERFACE = """
                     mediaRecorder.start();
                     isRecording = true;
                     micBtn.classList.add('recording');
-                    statusDiv.innerText = "Escuchando... Haz clic de nuevo para enviar.";
+                    statusDiv.innerText = "Escuchando... Vuelve a pulsar para enviar.";
                 } catch (err) {
                     statusDiv.innerText = "Error: Permiso de micrófono denegado.";
                 }
@@ -190,7 +265,7 @@ HTML_INTERFACE = """
         }
 
         async function sendAudioToJarvis(blob) {
-            responseBox.innerText = "Jarvis está pensando...";
+            responseBox.innerText = "Jarvis está escuchando y pensando...";
             const reader = new FileReader();
             reader.readAsDataURL(blob);
             reader.onloadend = async () => {
@@ -202,24 +277,15 @@ HTML_INTERFACE = """
                         body: JSON.stringify({ audio: base64Audio, mime_type: 'audio/webm' })
                     });
                     const data = await res.json();
-                    const reply = data.jarvis_response || "No pude procesar el mensaje, señor.";
+                    const reply = data.jarvis_response || "No pude procesar el mensaje de audio.";
                     
                     responseBox.innerText = reply;
-                    statusDiv.innerText = "Haz clic para hablarle a Jarvis";
-                    speak(reply);
+                    statusDiv.innerText = "Sistemas en espera, señor.";
                 } catch (err) {
-                    responseBox.innerText = "Error de conexión con el servidor de Jarvis.";
+                    responseBox.innerText = "Error de conexión con el servidor.";
                     statusDiv.innerText = "Intente de nuevo";
                 }
             };
-        }
-
-        function speak(text) {
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'es-ES';
-            utterance.rate = 1.0;
-            window.speechSynthesis.speak(utterance);
         }
     </script>
 </body>
@@ -229,6 +295,33 @@ HTML_INTERFACE = """
 @app.route('/', methods=['GET'])
 def home():
     return render_template_string(HTML_INTERFACE)
+
+@app.route('/ask', methods=['POST'])
+def ask():
+    if not client:
+        return jsonify({"error": "GEMINI_API_KEY no configurada en Render."}), 500
+
+    data = request.get_json() or {}
+    user_message = data.get("message", "")
+
+    if not user_message:
+        return jsonify({"jarvis_response": "Esperando sus órdenes, señor."}), 400
+
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=user_message,
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_INSTRUCTION,
+                tools=herramientas_jarvis,
+                temperature=0.2
+            )
+        )
+        return jsonify({
+            "jarvis_response": response.text
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/ask-audio', methods=['POST'])
 def ask_audio():
