@@ -317,7 +317,7 @@ def ask():
 
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-3.8-flash',
             contents=user_message,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION,
@@ -346,7 +346,7 @@ def ask_audio():
         audio_bytes = base64.b64decode(audio_base64)
         
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-3.8-flash',
             contents=[
                 types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
                 "Escucha este audio del usuario y responde directamente a lo que dice o pide."
