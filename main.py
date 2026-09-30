@@ -1,6 +1,7 @@
 import os
 import json
 import datetime
+import base64
 from flask import Flask, request, jsonify, render_template_string
 from google import genai
 from google.genai import types
@@ -39,21 +40,21 @@ def ejecutar_comando_sistema(comando: str) -> str:
 herramientas_jarvis = [obtener_hora_actual, ejecutar_comando_sistema]
 
 # ==========================================
-# INSTRUCCIÓN DE SISTEMA CON MEMORIA PERSONAL
+# INSTRUCCIÓN DE SISTEMA
 # ==========================================
 SYSTEM_INSTRUCTION = f"""
-Eres Jarvis, un asistente de IA personal avanzado, rápido, analítico y leal.
-Te diriges al usuario como 'señor' o 'Ilyas'.
+Eres Jarvis, un asistente de IA personal extremadamente rápido, analítico y leal.
+Te diriges al usuario siempre como 'señor' o 'Ilyas'.
 
 PERFIL DEL USUARIO Y CONTEXTO DEL SISTEMA:
 {json.dumps(perfil_usuario, ensure_ascii=False, indent=2)}
 
-Tienes acceso a herramientas y recursos del sistema para consultar información en tiempo real y ejecutar tareas.
-Tus respuestas deben ser concisas, objetivas, estructuradas y adaptadas para ser escuchadas por voz (evita código largo o tablas extensas a menos que te lo pida explícitamente).
+Tienes acceso a herramientas del sistema para consultar datos en tiempo real.
+Tus respuestas van a ser escuchadas por voz, por lo que deben ser directas, naturales, conversacionales y concisas (evita tablas o formateo markdown complejo).
 """
 
 # ==========================================
-# INTERFAZ WEB DE VOZ (HTML + JAVASCRIPT)
+# INTERFAZ WEB DE VOZ NATIVA (MEDIA RECORDER)
 # ==========================================
 HTML_INTERFACE = """
 <!DOCTYPE html>
@@ -61,7 +62,7 @@ HTML_INTERFACE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JARVIS Voice Assistant</title>
+    <title>J.A.R.V.I.S. Voice System</title>
     <style>
         body {
             background-color: #0b0f19;
@@ -78,18 +79,18 @@ HTML_INTERFACE = """
         }
         .jarvis-container {
             text-align: center;
-            background: rgba(16, 24, 48, 0.8);
+            background: rgba(16, 24, 48, 0.85);
             border: 1px solid #00f0ff;
             padding: 40px;
             border-radius: 20px;
-            box-shadow: 0 0 30px rgba(0, 240, 255, 0.2);
+            box-shadow: 0 0 30px rgba(0, 240, 255, 0.25);
             max-width: 500px;
             width: 100%;
         }
         h1 {
-            letter-spacing: 4px;
+            letter-spacing: 5px;
             margin-bottom: 30px;
-            text-shadow: 0 0 10px #00f0ff;
+            text-shadow: 0 0 12px #00f0ff;
         }
         .mic-btn {
             background: transparent;
@@ -108,11 +109,11 @@ HTML_INTERFACE = """
             transform: scale(1.05);
             background: rgba(0, 240, 255, 0.1);
         }
-        .listening {
+        .recording {
             border-color: #ff0055 !important;
             color: #ff0055 !important;
-            box-shadow: 0 0 25px rgba(255, 0, 85, 0.6) !important;
-            animation: pulse 1.2s infinite;
+            box-shadow: 0 0 30px rgba(255, 0, 85, 0.8) !important;
+            animation: pulse 1s infinite;
         }
         @keyframes pulse {
             0% { transform: scale(1); }
@@ -141,8 +142,8 @@ HTML_INTERFACE = """
 <body>
     <div class="jarvis-container">
         <h1>J.A.R.V.I.S.</h1>
-        <button id="micBtn" class="mic-btn" onclick="toggleListening()">🎙️</button>
-        <div id="status">Presione el micrófono para hablar con Jarvis</div>
+        <button id="micBtn" class="mic-btn" onclick="toggleRecording()">🎙️</button>
+        <div id="status">Haz clic para hablarle a Jarvis</div>
         <div id="response-box">Sistemas listos y en espera, señor.</div>
     </div>
 
@@ -151,70 +152,66 @@ HTML_INTERFACE = """
         const statusDiv = document.getElementById('status');
         const responseBox = document.getElementById('response-box');
 
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        let recognition = null;
-        let isListening = false;
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
 
-        if (SpeechRecognition) {
-            recognition = new SpeechRecognition();
-            recognition.lang = 'es-ES';
-            recognition.continuous = false;
-            recognition.interimResults = false;
-
-            recognition.onstart = () => {
-                isListening = true;
-                micBtn.classList.add('listening');
-                statusDiv.innerText = "Escuchando...";
-            };
-
-            recognition.onresult = async (event) => {
-                const text = event.results[0][0].transcript;
-                statusDiv.innerText = `Usted: "${text}"`;
-                responseBox.innerText = "Procesando respuesta...";
-                
-                // Enviar a backend Render
+        async function toggleRecording() {
+            if (!isRecording) {
                 try {
-                    const res = await fetch('/ask', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ message: text })
-                    });
-                    const data = await res.json();
-                    const jarvisReply = data.jarvis_response || "Ocurrió un error en el sistema.";
-                    
-                    responseBox.innerText = jarvisReply;
-                    statusDiv.innerText = "Presione el micrófono para hablar";
-                    speak(jarvisReply);
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+
+                    mediaRecorder.ondataavailable = event => {
+                        if (event.data.size > 0) {
+                            audioChunks.push(event.data);
+                        }
+                    };
+
+                    mediaRecorder.onstop = async () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        await sendAudioToJarvis(audioBlob);
+                    };
+
+                    mediaRecorder.start();
+                    isRecording = true;
+                    micBtn.classList.add('recording');
+                    statusDiv.innerText = "Escuchando... Haz clic de nuevo para enviar.";
                 } catch (err) {
-                    responseBox.innerText = "Error de conexión con el servidor de Jarvis.";
-                    statusDiv.innerText = "Presione para reintentar";
+                    statusDiv.innerText = "Error: Permiso de micrófono denegado.";
                 }
-            };
-
-            recognition.onerror = (event) => {
-                statusDiv.innerText = "Error al escuchar. Intente de nuevo.";
-                stopListening();
-            };
-
-            recognition.onend = () => {
-                stopListening();
-            };
-        } else {
-            statusDiv.innerText = "Su navegador no soporta entrada de voz nativa.";
-        }
-
-        function toggleListening() {
-            if (!recognition) return;
-            if (isListening) {
-                recognition.stop();
             } else {
-                recognition.start();
+                mediaRecorder.stop();
+                isRecording = false;
+                micBtn.classList.remove('recording');
+                statusDiv.innerText = "Procesando audio...";
             }
         }
 
-        function stopListening() {
-            isListening = false;
-            micBtn.classList.remove('listening');
+        async function sendAudioToJarvis(blob) {
+            responseBox.innerText = "Jarvis está pensando...";
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = async () => {
+                const base64Audio = reader.result.split(',')[1];
+                try {
+                    const res = await fetch('/ask-audio', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ audio: base64Audio, mime_type: 'audio/webm' })
+                    });
+                    const data = await res.json();
+                    const reply = data.jarvis_response || "No pude procesar el mensaje, señor.";
+                    
+                    responseBox.innerText = reply;
+                    statusDiv.innerText = "Haz clic para hablarle a Jarvis";
+                    speak(reply);
+                } catch (err) {
+                    responseBox.innerText = "Error de conexión con el servidor de Jarvis.";
+                    statusDiv.innerText = "Intente de nuevo";
+                }
+            };
         }
 
         function speak(text) {
@@ -233,21 +230,27 @@ HTML_INTERFACE = """
 def home():
     return render_template_string(HTML_INTERFACE)
 
-@app.route('/ask', methods=['POST'])
-def ask():
+@app.route('/ask-audio', methods=['POST'])
+def ask_audio():
     if not client:
         return jsonify({"error": "GEMINI_API_KEY no configurada en Render."}), 500
 
     data = request.get_json() or {}
-    user_message = data.get("message", "")
+    audio_base64 = data.get("audio", "")
+    mime_type = data.get("mime_type", "audio/webm")
 
-    if not user_message:
-        return jsonify({"jarvis_response": "Esperando sus órdenes, señor."}), 400
+    if not audio_base64:
+        return jsonify({"jarvis_response": "No he recibido ningún audio, señor."}), 400
 
     try:
+        audio_bytes = base64.b64decode(audio_base64)
+        
         response = client.models.generate_content(
             model='gemini-2.5-flash',
-            contents=user_message,
+            contents=[
+                types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+                "Escucha este audio del usuario y responde directamente a lo que dice o pide."
+            ],
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION,
                 tools=herramientas_jarvis,
