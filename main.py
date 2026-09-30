@@ -20,8 +20,8 @@ def cargar_perfil():
             with open("user_profile.json", "r", encoding="utf-8") as f:
                 return json.load(f)
     except Exception as e:
-        print(f"Error al cargar el perfil: {e}")
-    return {}
+        print(f"Aviso: No se pudo cargar user_profile.json: {e}")
+    return {"nombre": "Ilyas"}
 
 perfil_usuario = cargar_perfil()
 
@@ -217,10 +217,14 @@ HTML_INTERFACE = """
                     body: JSON.stringify({ message: text })
                 });
                 const data = await res.json();
-                const reply = data.jarvis_response || "No pude procesar la solicitud, señor.";
                 
-                responseBox.innerText = reply;
-                statusDiv.innerText = "Sistemas en espera, señor.";
+                if (data.error) {
+                    responseBox.innerText = "Error del servidor: " + data.error;
+                    statusDiv.innerText = "Error al procesar";
+                } else {
+                    responseBox.innerText = data.jarvis_response || "Sin respuesta del servidor.";
+                    statusDiv.innerText = "Sistemas en espera, señor.";
+                }
             } catch (err) {
                 responseBox.innerText = "Error de conexión con el servidor de Jarvis.";
                 statusDiv.innerText = "Error al enviar";
@@ -277,10 +281,14 @@ HTML_INTERFACE = """
                         body: JSON.stringify({ audio: base64Audio, mime_type: 'audio/webm' })
                     });
                     const data = await res.json();
-                    const reply = data.jarvis_response || "No pude procesar el mensaje de audio.";
                     
-                    responseBox.innerText = reply;
-                    statusDiv.innerText = "Sistemas en espera, señor.";
+                    if (data.error) {
+                        responseBox.innerText = "Error del servidor: " + data.error;
+                        statusDiv.innerText = "Error al procesar audio";
+                    } else {
+                        responseBox.innerText = data.jarvis_response || "No pude procesar el mensaje de audio.";
+                        statusDiv.innerText = "Sistemas en espera, señor.";
+                    }
                 } catch (err) {
                     responseBox.innerText = "Error de conexión con el servidor.";
                     statusDiv.innerText = "Intente de nuevo";
@@ -299,7 +307,7 @@ def home():
 @app.route('/ask', methods=['POST'])
 def ask():
     if not client:
-        return jsonify({"error": "GEMINI_API_KEY no configurada en Render."}), 500
+        return jsonify({"error": "GEMINI_API_KEY no configurada en las variables de entorno de Render."}), 500
 
     data = request.get_json() or {}
     user_message = data.get("message", "")
@@ -313,7 +321,6 @@ def ask():
             contents=user_message,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION,
-                tools=herramientas_jarvis,
                 temperature=0.2
             )
         )
@@ -326,7 +333,7 @@ def ask():
 @app.route('/ask-audio', methods=['POST'])
 def ask_audio():
     if not client:
-        return jsonify({"error": "GEMINI_API_KEY no configurada en Render."}), 500
+        return jsonify({"error": "GEMINI_API_KEY no configurada en las variables de entorno de Render."}), 500
 
     data = request.get_json() or {}
     audio_base64 = data.get("audio", "")
@@ -346,7 +353,6 @@ def ask_audio():
             ],
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION,
-                tools=herramientas_jarvis,
                 temperature=0.2
             )
         )
