@@ -6,8 +6,10 @@ from google.genai import types
 
 app = Flask(__name__)
 
+# Cargar API Key desde la variable de entorno de Render
 api_key = os.environ.get("GEMINI_API_KEY")
 client = genai.Client(api_key=api_key) if api_key else None
+
 
 # ==========================================
 # DEFINICIÓN DE HERRAMIENTAS (HERRAMIENTAS Y RECURSOS)
@@ -18,10 +20,11 @@ def obtener_hora_actual() -> str:
     ahora = datetime.datetime.now()
     return ahora.strftime("Fecha: %d/%m/%Y, Hora: %H:%M:%S")
 
+
 def ejecutar_comando_sistema(comando: str) -> str:
     """Simula o ejecuta comandos de control para la infraestructura de Jarvis."""
-    # Aquí puedes conectar llamadas a APIs, scripts o servicios de Render/servidores
     return f"Comando '{comando}' procesado correctamente en el sistema principal."
+
 
 # Lista de herramientas disponibles para la IA
 herramientas_jarvis = [obtener_hora_actual, ejecutar_comando_sistema]
@@ -38,6 +41,7 @@ Tienes acceso a herramientas y recursos del sistema para consultar información 
 Tus respuestas deben ser concisas, objetivas, estructuradas y directas al grano.
 """
 
+
 @app.route('/', methods=['GET'])
 def home():
     return jsonify({
@@ -46,6 +50,7 @@ def home():
         "message": "Sistemas principales y herramientas operativas, señor. ¿Qué necesita?"
     })
 
+
 @app.route('/ask', methods=['POST'])
 def ask():
     if not client:
@@ -53,7 +58,7 @@ def ask():
 
     data = request.get_json() or {}
     user_message = data.get("message", "")
-    
+
     if not user_message:
         return jsonify({"jarvis_response": "Esperando sus órdenes, señor."}), 400
 
@@ -65,7 +70,7 @@ def ask():
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION,
                 tools=herramientas_jarvis,
-                temperature=0.2  # Temperatura baja para mayor precisión en uso de herramientas
+                temperature=0.2
             )
         )
         return jsonify({
@@ -73,6 +78,7 @@ def ask():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
