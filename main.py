@@ -1,25 +1,49 @@
 import os
+import datetime
 from flask import Flask, request, jsonify
 from google import genai
+from google.genai import types
 
 app = Flask(__name__)
 
-# Cargar la API key desde la variable de entorno de Render
 api_key = os.environ.get("GEMINI_API_KEY")
 client = genai.Client(api_key=api_key) if api_key else None
 
+# ==========================================
+# DEFINICIÓN DE HERRAMIENTAS (HERRAMIENTAS Y RECURSOS)
+# ==========================================
+
+def obtener_hora_actual() -> str:
+    """Devuelve la fecha y hora actual exacta del sistema."""
+    ahora = datetime.datetime.now()
+    return ahora.strftime("Fecha: %d/%m/%Y, Hora: %H:%M:%S")
+
+def ejecutar_comando_sistema(comando: str) -> str:
+    """Simula o ejecuta comandos de control para la infraestructura de Jarvis."""
+    # Aquí puedes conectar llamadas a APIs, scripts o servicios de Render/servidores
+    return f"Comando '{comando}' procesado correctamente en el sistema principal."
+
+# Lista de herramientas disponibles para la IA
+herramientas_jarvis = [obtener_hora_actual, ejecutar_comando_sistema]
+
+
+# ==========================================
+# INSTRUCCIÓN DE SISTEMA (PERSONALIDAD DE JARVIS)
+# ==========================================
+
 SYSTEM_INSTRUCTION = """
-Eres Jarvis, un asistente de IA personal avanzado, rápido, educado y leal.
+Eres Jarvis, un asistente de IA personal avanzado, rápido, analítico y leal.
 Te diriges al usuario como 'señor' o 'Ilyas'.
-Tus respuestas deben ser concisas, precisas y directas al grano.
+Tienes acceso a herramientas y recursos del sistema para consultar información en tiempo real y ejecutar tareas.
+Tus respuestas deben ser concisas, objetivas, estructuradas y directas al grano.
 """
 
 @app.route('/', methods=['GET'])
 def home():
     return jsonify({
         "status": "online",
-        "system": "Jarvis Core",
-        "message": "Sistemas operativos, Ilyas. ¿En qué puedo ayudarle hoy?"
+        "system": "Jarvis Core (v2 - Tools Enabled)",
+        "message": "Sistemas principales y herramientas operativas, señor. ¿Qué necesita?"
     })
 
 @app.route('/ask', methods=['POST'])
@@ -34,10 +58,15 @@ def ask():
         return jsonify({"jarvis_response": "Esperando sus órdenes, señor."}), 400
 
     try:
+        # Llamada con soporte automático de herramientas (Function Calling)
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=user_message,
-            config={'system_instruction': SYSTEM_INSTRUCTION}
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_INSTRUCTION,
+                tools=herramientas_jarvis,
+                temperature=0.2  # Temperatura baja para mayor precisión en uso de herramientas
+            )
         )
         return jsonify({
             "jarvis_response": response.text
