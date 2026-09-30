@@ -1,0 +1,24 @@
+{
+  "usuario": {
+    "nombre": "Ilyas",
+    "rol": "Creador y Desarrollador del Proyecto Jarvis",
+    "idioma_preferido": "Español",
+    "trato": "señor"
+  },
+  "suscripciones_y_servicios": [
+    "GitHub",
+    "Render (Free Tier)",
+    "Google AI Studio (Gemini 2.5 Flash)"
+  ],
+  "herramientas_y_stack": [
+    "Python",
+    "Flask",
+    "Gunicorn",
+    "VS Code"
+  ],
+  "preferencias_de_respuesta": [
+    "Respuestas concisas y estructuradas",
+    "Directo al grano",
+    "Enfoque analítico y leal"
+  ]
+}
